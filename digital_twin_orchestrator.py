@@ -58,6 +58,7 @@ class SystemConfiguration:
     enable_quantum_optimization: bool
     database_config: Dict[str, str]
     api_endpoints: Dict[str, str]
+    enable_external_data_sync: bool = False
 
 class DigitalTwinOrchestrator:
     """Main orchestrator for the Pharmaceutical Digital Twin system"""
@@ -93,6 +94,11 @@ class DigitalTwinOrchestrator:
         
         # Connect to data sources
         await self._connect_data_sources()
+
+        # Start scheduled external data synchronization if enabled
+        if self.config.enable_external_data_sync:
+            from data_sync import start_auto_sync
+            asyncio.create_task(start_auto_sync())
         
         # Start monitoring if enabled
         if self.config.enable_real_time_monitoring:
