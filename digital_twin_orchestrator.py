@@ -15,6 +15,16 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 
+from external_data_ingestion import (
+    fetch_openprescribing,
+    fetch_openfda,
+    map_prescribing_data,
+    map_fda_data,
+    schedule_sync,
+)
+from scenario_ui import ScenarioToggle
+from report_exporter import export_fda_report
+
 # Import all digital twin components
 from models.molecule_twin import MoleculeTwin, ProcessConditions, MolecularState
 from quantum.production_simulator import (
@@ -58,6 +68,9 @@ class SystemConfiguration:
     enable_quantum_optimization: bool
     database_config: Dict[str, str]
     api_endpoints: Dict[str, str]
+    prescribing_sync_interval: int = 24 * 3600
+    fda_sync_interval: int = 7 * 24 * 3600
+    scenario_inputs: Optional[Dict[str, bool]] = None
 
 class DigitalTwinOrchestrator:
     """Main orchestrator for the Pharmaceutical Digital Twin system"""
@@ -72,6 +85,8 @@ class DigitalTwinOrchestrator:
             config.facility_id
         )
         self.active_batches: Dict[str, Dict] = {}
+        self.scenario_toggle = ScenarioToggle(**(config.scenario_inputs or {}))
+        self.external_data: List[Dict[str, Any]] = []
         self.system_metrics = {
             "batches_processed": 0,
             "predictions_made": 0,
@@ -137,8 +152,42 @@ class DigitalTwinOrchestrator:
         # - Enterprise Resource Planning (ERP)
         # - IoT sensors
         # - Quality Management System (QMS)
-        
+        # Schedule external data synchronisation
+        try:
+            schedule_sync(
+                timedelta(seconds=self.config.prescribing_sync_interval),
+                fetch_openprescribing,
+                map_prescribing_data,
+                self._handle_external_data,
+                self.config.api_endpoints.get("openprescribing_ccg", "10Q"),
+                self.config.api_endpoints.get("openprescribing_measure", "quantity"),
+            )
+            schedule_sync(
+                timedelta(seconds=self.config.fda_sync_interval),
+                fetch_openfda,
+                map_fda_data,
+                self._handle_external_data,
+                self.config.api_endpoints.get("openfda_drug", "ibuprofen"),
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to schedule external data sync: {exc}")
+
         logger.info("Connected to data sources")
+
+    def _handle_external_data(self, payload: Dict[str, Any]) -> None:
+        """Store mapped external data payloads."""
+
+        self.external_data.append(payload)
+
+    def toggle_scenario_input(self, key: str) -> None:
+        """Toggle scenario inputs such as pricing, utilization or policy."""
+
+        self.scenario_toggle.toggle(key)
+
+    def export_simulation_report(self, data: Dict[str, Any], path: str) -> Dict[str, str]:
+        """Export simulation results in FDA-friendly formats."""
+
+        return export_fda_report(data, path)
     
     async def create_batch_twin(self, batch_config: Dict[str, Any]) -> str:
         """Create a new batch digital twin"""
