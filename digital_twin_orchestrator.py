@@ -32,6 +32,9 @@ from regulatory.document_generator import (
     RegulatoryDocumentGenerator,
     DocumentType
 )
+from data_ingestion import OpenPrescribingIngestor, OpenFDAIngestor
+from scenario_ui import ScenarioToggle
+from fda_reporter import export_fda_report
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,14 @@ class DigitalTwinOrchestrator:
         }
         self.executor = ThreadPoolExecutor(max_workers=4)
         self._running = False
+        self.external_data: Dict[str, Any] = {}
+        self.prescribing_ingestor = OpenPrescribingIngestor(
+            callback=lambda data: self.external_data.update({"prescribing": data})
+        )
+        self.openfda_ingestor = OpenFDAIngestor(
+            callback=lambda data: self.external_data.update({"safety": data})
+        )
+        self.scenario_toggle = ScenarioToggle()
         
     async def initialize_system(self):
         """Initialize all system components"""
@@ -93,7 +104,11 @@ class DigitalTwinOrchestrator:
         
         # Connect to data sources
         await self._connect_data_sources()
-        
+
+        # Schedule external data ingestion
+        self.prescribing_ingestor.schedule_sync("daily")
+        self.openfda_ingestor.schedule_sync("weekly")
+
         # Start monitoring if enabled
         if self.config.enable_real_time_monitoring:
             asyncio.create_task(self._monitoring_loop())
@@ -627,6 +642,16 @@ class DigitalTwinOrchestrator:
             "molecule_library_size": len(self.molecule_twins),
             "quality_models_count": len(self.quality_engines)
         }
+
+    def set_scenario_options(self, **options: bool) -> None:
+        """Update scenario toggles used for simulations."""
+        for name, value in options.items():
+            self.scenario_toggle.set_option(name, value)
+
+    def export_fda_simulation_report(self, results: Dict[str, Any], json_path: str, pdf_path: Optional[str] = None) -> None:
+        """Export simulation results in FDA-friendly formats."""
+        export_fda_report(results, json_path, pdf_path)
+        self.system_metrics["documents_generated"] += 1
     
     async def shutdown(self):
         """Gracefully shutdown the system"""
