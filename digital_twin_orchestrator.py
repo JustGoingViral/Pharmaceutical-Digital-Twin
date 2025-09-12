@@ -32,6 +32,7 @@ from regulatory.document_generator import (
     RegulatoryDocumentGenerator,
     DocumentType
 )
+from simulation_report import export_fda_simulation_report
 
 logger = logging.getLogger(__name__)
 
@@ -327,10 +328,18 @@ class DigitalTwinOrchestrator:
                 scenario,
                 num_shots=simulation_params.get('num_shots', 1000) if simulation_params else 1000
             )
-            
+
             # Store results
             batch['quantum_simulation'] = simulation_result
-            
+
+            # Export FDA-friendly report
+            try:
+                report_prefix = os.path.join("output", "reports", f"quantum_sim_{batch_id}")
+                report_files = export_fda_simulation_report(simulation_result, report_prefix)
+                simulation_result["fda_report_files"] = report_files
+            except Exception as exc:
+                logger.error(f"Failed to export simulation report: {exc}")
+
             # Apply optimizations if quantum advantage achieved
             if simulation_result['quantum_advantage_metrics']['achieves_quantum_advantage']:
                 await self._apply_quantum_optimizations(batch_id, simulation_result)
