@@ -1,5 +1,9 @@
 import numpy as np
-from qiskit import QuantumCircuit, transpile, Aer, execute
+from qiskit import QuantumCircuit, transpile
+try:  # Qiskit >= 0.25 separates Aer
+    from qiskit_aer import Aer
+except Exception:  # pragma: no cover - fallback for older versions
+    from qiskit import Aer
 
 class QuantumScenarioSimulator:
     def __init__(self, num_qubits=4):
@@ -18,7 +22,8 @@ class QuantumScenarioSimulator:
             qc.ry(param, i)
         qc.barrier()
         qc.measure(range(self.num_qubits), range(self.num_qubits))
-        job = execute(qc, self.backend, shots=1024)
+        compiled = transpile(qc, self.backend)
+        job = self.backend.run(compiled, shots=1024)
         result = job.result()
         counts = result.get_counts(qc)
         return counts
