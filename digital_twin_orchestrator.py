@@ -43,6 +43,9 @@ from regulatory.document_generator import (
     DocumentType,
 )
 from simulation_report import export_fda_simulation_report
+from data_ingestion import OpenPrescribingIngestor, OpenFDAIngestor
+from scenario_ui import ScenarioToggle
+from fda_reporter import export_fda_report
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +106,15 @@ class DigitalTwinOrchestrator:
         self.executor = ThreadPoolExecutor(max_workers=4)
         self._running = False
 
+        self.external_data: Dict[str, Any] = {}
+        self.prescribing_ingestor = OpenPrescribingIngestor(
+            callback=lambda data: self.external_data.update({"prescribing": data})
+        )
+        self.openfda_ingestor = OpenFDAIngestor(
+            callback=lambda data: self.external_data.update({"safety": data})
+        )
+        self.scenario_toggle = ScenarioToggle()
+        
     async def initialize_system(self):
         """Initialize all system components"""
         logger.info(f"Initializing Digital Twin System in {self.config.mode.value} mode")
@@ -123,6 +135,9 @@ class DigitalTwinOrchestrator:
                 asyncio.create_task(start_auto_sync())
             except Exception as exc:
                 logger.warning(f"External data auto-sync not started: {exc}")
+        # Schedule external data ingestion
+        self.prescribing_ingestor.schedule_sync("daily")
+        self.openfda_ingestor.schedule_sync("weekly")
 
         # Start monitoring if enabled
         if self.config.enable_real_time_monitoring:
@@ -724,6 +739,16 @@ class DigitalTwinOrchestrator:
             "quality_models_count": len(self.quality_engines),
         }
 
+    def set_scenario_options(self, **options: bool) -> None:
+        """Update scenario toggles used for simulations."""
+        for name, value in options.items():
+            self.scenario_toggle.set_option(name, value)
+
+    def export_fda_simulation_report(self, results: Dict[str, Any], json_path: str, pdf_path: Optional[str] = None) -> None:
+        """Export simulation results in FDA-friendly formats."""
+        export_fda_report(results, json_path, pdf_path)
+        self.system_metrics["documents_generated"] += 1
+    
     async def shutdown(self):
         """Gracefully shutdown the system"""
         logger.info("Shutting down Digital Twin System")

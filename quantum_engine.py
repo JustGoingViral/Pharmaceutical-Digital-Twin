@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Dict, List
 import numpy as np
 
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import Aer
 
 class QuantumScenarioSimulator:
     """Lightweight stand-in for quantum simulations.
@@ -87,6 +89,15 @@ class QuantumScenarioSimulator:
         counts = {}
         for bits in bitstrings:
             counts[bits] = counts.get(bits, 0) + 1
+        qc = QuantumCircuit(self.num_qubits, self.num_qubits)
+        for i, param in enumerate(parameters):
+            qc.ry(param, i)
+        qc.barrier()
+        qc.measure(range(self.num_qubits), range(self.num_qubits))
+        compiled = transpile(qc, self.backend)
+        job = self.backend.run(compiled, shots=1024)
+        result = job.result()
+        counts = result.get_counts()
         return counts
 
         Returns:
