@@ -124,7 +124,7 @@ pytest test_external_data_ingestion.py
 - **README.md**: Project overview and getting started guide
 - **CHANGELOG.md**: Detailed change history
 - **PDTF_demo.ipynb**: Interactive Jupyter notebook demonstration
-- **setup.py.py**: Package configuration and dependencies
+- **setup.py**: Package configuration and dependencies
 
 ---
 
