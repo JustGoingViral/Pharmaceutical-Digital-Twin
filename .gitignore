@@ -1,2 +1,4 @@
 .DS_Store
+
+# Utility script for generating REPOSITORY_SNAPSHOT.md
 create_snapshot.py

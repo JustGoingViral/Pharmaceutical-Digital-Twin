@@ -1,6 +1,6 @@
 # Repository Snapshot
 
-**Generated:** 2025-12-29 21:13:39 UTC
+**Generated:** 2025-12-29 21:14:53 UTC
 
 **Repository:** Pharmaceutical-Digital-Twin
 
@@ -66,6 +66,8 @@
 
 ```text
 .DS_Store
+
+# Utility script for generating REPOSITORY_SNAPSHOT.md
 create_snapshot.py
 ```
 
